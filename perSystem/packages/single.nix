@@ -13,18 +13,18 @@
         url = "https://distro.ibiblio.org/slitaz/sources/packages/d/doom1.wad";
         sha256 = "sha256-HX1DvlAeZ9kn5BXguPPinDvzMHXoWXIYFvZSpSbKx3E=";
       };
-      hydra-doom-static = let
+      hydra-doom-static-single = let
         serverUrl = controlPlaneUrl;
         wadFile = doomWad;
         cabinetKey = null;
         region = "local";
         useMouse = "1";
-        src = inputs.hydra-doom;
+        src = inputs.hydra-doom-single;
         nodeModules = pkgs.mkYarnPackage {
           name = "hydra-doom-node-modules";
           inherit src;
-          packageJSON = inputs.hydra-doom + "/package.json";
-          yarnLock = inputs.hydra-doom + "/yarn.lock";
+          packageJSON = src + "/package.json";
+          yarnLock = src + "/yarn.lock";
           nodejs = pkgs.nodejs;
          };
 
@@ -40,7 +40,8 @@
             nodeModules
           ];
           buildPhase = ''
-            ln -s ${nodeModules}/libexec/hydra-doom-react/node_modules node_modules
+            ln -s ${nodeModules}/libexec/hydra-doom/node_modules node_modules
+            ln -sf ${finalAttrs.passthru.wadFile} assets/doom1.wad
             cat > .env << EOF
             SERVER_URL=${finalAttrs.passthru.serverUrl}
             ${lib.optionalString (finalAttrs.passthru.cabinetKey != null) "CABINET_KEY=${finalAttrs.passthru.cabinetKey}"}
@@ -56,38 +57,9 @@
     in
     {
       packages = {
-        hydra-cluster-wrapper = pkgs.writeShellApplication {
-          name = "hydra-cluster-wrapper";
-          runtimeInputs = [ config.packages.cardano-node config.packages.cardano-cli ];
-          text = ''
-            rm -rf "${hydraDataDir}"
-            ${lib.getExe' config.packages.hydra-cluster "hydra-cluster"} --devnet --publish-hydra-scripts --state-directory ${hydraDataDir}
-          '';
-        };
-        hydra-offline-wrapper = pkgs.writeShellApplication {
-          name = "hydra-offline-wrapper";
-          runtimeInputs = [ config.packages.cardano-node config.packages.cardano-cli pkgs.jq pkgs.curl ];
-          text = ''
-            rm -rf "${hydraDataDir}"
-            mkdir -p "${hydraDataDir}"
-            cardano-cli address key-gen --normal-key --verification-key-file admin.vk --signing-key-file admin.sk
-            pushd ${hydraDataDir}
-            ${lib.getExe' config.packages.hydra-node "hydra-node"} gen-hydra-key --output-file hydra
-            curl https://raw.githubusercontent.com/cardano-scaling/hydra/0.17.0/hydra-cluster/config/protocol-parameters.json | jq '.utxoCostPerByte = 0' > protocol-parameters.json
-            cp ${../../initial-utxo.json} utxo.json
-            sed -i "s/YOURADDRESSHERE/$(cardano-cli address build --verification-key-file ../admin.vk --testnet-magic 1)/g" utxo.json
-            ${lib.getExe' config.packages.hydra-node "hydra-node"} offline \
-              --hydra-signing-key hydra.sk \
-              --ledger-protocol-parameters protocol-parameters.json \
-              --host 0.0.0.0 \
-              --api-host 0.0.0.0 \
-              --initial-utxo utxo.json
-            popd
-          '';
-        };
-        inherit hydra-doom-static;
-        hydra-doom-wrapper = pkgs.writeShellApplication {
-          name = "hydra-doom-wrapper";
+        inherit hydra-doom-static-single;
+        hydra-doom-wrapper-single = pkgs.writeShellApplication {
+          name = "hydra-doom-wrapper-single";
           runtimeInputs = [ config.packages.bech32 pkgs.jq pkgs.git pkgs.nodejs pkgs.python3 ];
           text = ''
             export STATIC="''${STATIC:-1}"
@@ -97,21 +69,16 @@
               npm start
             else
               echo "running http webserver for local play at http://localhost:3000..."
-              pushd ${config.packages.hydra-doom-static}
+              pushd ${config.packages.hydra-doom-static-single}
               python3 -m http.server 3000
             fi
           '';
         };
-        hydra-tui-wrapper = pkgs.writeShellApplication {
-          name = "hydra-tui-wrapper";
-          runtimeInputs = [ config.packages.hydra-tui ];
+        hydra-control-plane-wrapper-single = pkgs.writeShellApplication {
+          name = "hydra-control-plane-wrapper-single";
           text = ''
-            ${lib.getExe' config.packages.hydra-tui "hydra-tui"} -k admin.sk
-          '';
-        };
-        hydra-control-plane-wrapper = pkgs.writeShellApplication {
-          name = "hydra-control-plane-wrapper";
-          text = ''
+            mkdir -p single
+            pushd single
             export RESERVED="''${RESERVED:-false}"
             export PRESERVE_ROCKET_TOML="''${PRESERVE_ROCKET_TOML:-0}"
             export ROCKET_PROFILE=local
@@ -128,14 +95,14 @@
             remote_url = "ws://${hydraHost}"
             port = ${hydraPort}
             max_players = 100
-            admin_key_file = "admin.sk"
+            admin_key_file = "../admin.sk"
             persisted = false
             reserved = ''${RESERVED}
             region = "local"
             stats-file = "local-stats"
             EOF
             fi
-            ${lib.getExe' config.packages.hydra-control-plane "hydra_control_plane"}
+            ${lib.getExe' config.packages.hydra-control-plane-single "hydra_control_plane"}
           '';
         };
       };

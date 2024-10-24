@@ -8,8 +8,13 @@
     flake-parts.url = "github:hercules-ci/flake-parts";
     process-compose-flake.url = "github:Platonic-Systems/process-compose-flake";
     hydra-control-plane.url = "github:cardano-scaling/hydra-control-plane";
+    hydra-control-plane-single.url = "github:cardano-scaling/hydra-control-plane/849871d88d21c25cd7fcc493eceadccfde7538f1";
     hydra-doom = {
       url = "github:cardano-scaling/hydra-doom/sl/vite-config-fix";
+      flake = false;
+    };
+    hydra-doom-single = {
+      url = "github:cardano-scaling/hydra-doom/sl/single-player-refactor";
       flake = false;
     };
     nix-inclusive.url = "github:input-output-hk/nix-inclusive";
